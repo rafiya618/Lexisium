@@ -29,9 +29,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text)] font-lato">
+      {/* Heading */}
+      <section className="px-4 sm:px-6 md:px-8 pt-6">
+        <h2 className="text-2xl sm:text-3xl font-fenix mb-4 sm:mb-6 text-center text-gradient">
+          Explore Categories
+        </h2>
+      </section>
+
       {/* Search Bar */}
-      <section className="px-4 sm:px-6 md:px-8 pt-4">
-        <div className="w-full max-w-3xl mx-auto">
+      <section className="px-4 sm:px-6 md:px-8">
+        <div className="w-full max-w-6xl lg:max-w-7xl mx-auto">
           <SearchBar
             placeholder="Search categories..."
             value={categorySearch}
@@ -42,9 +49,6 @@ export default function Home() {
 
       {/* Category Grid */}
       <section className="px-4 sm:px-6 md:px-8 mb-10">
-        <h2 className="text-2xl sm:text-3xl font-fenix mb-4 sm:mb-6 text-center text-gradient">
-          Explore Categories
-        </h2>
         <div className="max-w-6xl mx-auto">
           <CategoryGrid
             categories={categories}
