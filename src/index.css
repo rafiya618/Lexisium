@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Fenix&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ===========================================
+   Root Variables (Colors, Fonts, Radius)
+=========================================== */
+:root {
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Fonts */
+  --font-lato: 'Lato', sans-serif;
+  --font-fenix: 'Fenix', serif;
+
+  /* === Coral === */
+  --color-coral: #EF8354;
+  --color-coral-light: #f18d62;
+  --color-coral-dark: #cc6f47;
+  --color-coral-darker: #d17047;
+
+  /* === Gunmetal === */
+  --color-gunmetal: #2D3142;
+  --color-gunmetal-light: #3A3D44;
+  --color-gunmetal-dark: #1A1D24;
+  --color-gunmetal-darker: #0A0D14;
+
+  /* === Silver === */
+  --color-silver: #C5C6C7;
+  --color-silver-light: #adc2dc;
+  --color-silver-dark: #8ea1b5;
+
+  /* === Payne’s Gray === */
+  --color-paynesgray: #4F5D75;
+  --color-paynesgray-light: rgb(90, 100, 139);
+  --color-paynesgray-dark: #3A4A5A;
+  --color-paynesgray-darker: #2A3A4A;
+
+  /* Default Theme Colors */
+  --color-background: #e2eded;
+  --color-text: var(--color-gunmetal-darker);
+  --color-border: var(--color-silver-light);
+}
+
+/* ===========================================
+   Dark Mode
+=========================================== */
+.dark {
+  --color-background: var(--color-gunmetal-dark);
+  --color-text: var(--color-silver-light);
+  --color-border: var(--color-gunmetal-light);
+}
+
+/* ===========================================
+   Base Styles
+=========================================== */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    font-family: var(--font-lato);
+    background-color: var(--color-background);
+    color: var(--color-text);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-fenix);
+    color: var(--color-gunmetal-darker);
+  }
+}
+
+/* ===========================================
+   Components
+=========================================== */
+@layer components {
+  .font-lato {
+    font-family: var(--font-lato);
+  }
+
+  .font-fenix {
+    font-family: var(--font-fenix);
+  }
+
+  .lexisium-gradient {
+    background: linear-gradient(135deg, var(--color-coral), var(--color-gunmetal));
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(to right, var(--color-coral), var(--color-coral-dark));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
