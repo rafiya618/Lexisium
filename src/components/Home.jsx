@@ -29,23 +29,28 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text)] font-lato">
-
       {/* Search Bar */}
-      <SearchBar
-        placeholder="Search categories..."
-        value={categorySearch}
-        onChange={handleSearch}
-      />
+      <section className="px-4 sm:px-6 md:px-8 pt-4">
+        <div className="w-full max-w-3xl mx-auto">
+          <SearchBar
+            placeholder="Search categories..."
+            value={categorySearch}
+            onChange={handleSearch}
+          />
+        </div>
+      </section>
 
       {/* Category Grid */}
-      <section className="px-6 mb-10">
-        <h2 className="text-3xl font-fenix mb-6 text-center text-gradient">
+      <section className="px-4 sm:px-6 md:px-8 mb-10">
+        <h2 className="text-2xl sm:text-3xl font-fenix mb-4 sm:mb-6 text-center text-gradient">
           Explore Categories
         </h2>
-        <CategoryGrid
-          categories={categories}
-          onSelect={(id) => console.log("Navigate to Add Word for", id)}
-        />
+        <div className="max-w-6xl mx-auto">
+          <CategoryGrid
+            categories={categories}
+            onSelect={(id) => console.log("Navigate to Add Word for", id)}
+          />
+        </div>
       </section>
     </div>
   );
