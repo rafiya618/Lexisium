@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CategoryManager from "./CategoryManager";
 import WordManager from "./WordManager";
 import NewWords from "./NewWords";
 import HiddenWords from "./HiddenWords";
-import { LogOut, LayoutGrid, FolderOpen, BookOpen, EyeOff } from "lucide-react";
+import { LogOut, LayoutGrid, FolderOpen, BookOpen, EyeOff, ChevronDown } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
 export default function Dashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState("categories");
+  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   // ✅ Token Expiry Check
   useEffect(() => {
@@ -44,6 +46,18 @@ export default function Dashboard({ onLogout }) {
     { id: "hidden", label: "Hidden Words", icon: <EyeOff size={18} />, component: <HiddenWords /> },
   ];
 
+  const activeLabel = tabs.find(t => t.id === activeTab)?.label || "Sections";
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setMobileTabsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
       {/* Header */}
@@ -61,8 +75,45 @@ export default function Dashboard({ onLogout }) {
         </button>
       </header>
 
-      {/* Navigation Tabs */}
-      <nav className="bg-white border-b flex space-x-6 px-6">
+      {/* Mobile Tabs (arrow dropdown) */}
+      <div ref={dropdownRef} className="bg-white border-b px-4 py-3 md:hidden relative">
+        <button
+          onClick={() => setMobileTabsOpen((prev) => !prev)}
+          aria-expanded={mobileTabsOpen}
+          className="w-full flex items-center justify-between px-4 py-2 rounded-lg border-2 border-gray-200 text-[var(--color-gunmetal)] hover:border-[var(--color-coral)] transition"
+        >
+          <span className="font-medium">{activeLabel}</span>
+          <ChevronDown
+            size={20}
+            className={`text-[var(--color-coral)] transition-transform ${mobileTabsOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {mobileTabsOpen && (
+          <div className="absolute left-4 right-4 mt-2 bg-white border border-[var(--color-paynesgray)] rounded-lg shadow-lg z-10 overflow-hidden">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setMobileTabsOpen(false);
+                }}
+                className={`w-full flex items-center gap-2 px-4 py-3 text-left transition ${
+                  activeTab === tab.id
+                    ? "bg-[var(--color-coral)] text-white"
+                    : "text-[var(--color-gunmetal)] hover:bg-[var(--color-paynesgray)]/10"
+                }`}
+              >
+                {tab.icon}
+                <span className="font-medium">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Navigation Tabs (Desktop/Tablet) */}
+      <nav className="bg-white border-b px-6 hidden md:flex space-x-6">
         {tabs.map((tab) => (
           <button
             key={tab.id}
