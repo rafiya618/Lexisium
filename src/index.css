@@ -39,8 +39,11 @@
   --color-paynesgray-dark: #3A4A5A;
   --color-paynesgray-darker: #2A3A4A;
 
+  /* Placeholders */
+  --color-placeholder: rgba(79, 93, 117, 0.7); /* paynes gray, slightly lighter */
+
   /* Default Theme Colors */
-  --color-background: #e2eded;
+  --color-background: #f2f7f7;
   --color-text: var(--color-gunmetal-darker);
   --color-border: var(--color-silver-light);
 }
@@ -66,6 +69,11 @@
     font-family: var(--font-lato);
     background-color: var(--color-background);
     color: var(--color-text);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-placeholder);
   }
 
   h1, h2, h3, h4, h5, h6 {

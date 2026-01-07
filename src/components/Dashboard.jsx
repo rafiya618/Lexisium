@@ -3,13 +3,13 @@ import CategoryManager from "./CategoryManager";
 import WordManager from "./WordManager";
 import NewWords from "./NewWords";
 import HiddenWords from "./HiddenWords";
-import { LogOut, LayoutGrid, FolderOpen, BookOpen, EyeOff, ChevronDown } from "lucide-react";
+import { LogOut, LayoutGrid, FolderOpen, BookOpen, EyeOff, ChevronDown, PlusCircle } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
 export default function Dashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState("categories");
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const mobileDropdownRef = useRef(null);
 
   // ✅ Token Expiry Check
   useEffect(() => {
@@ -42,15 +42,16 @@ export default function Dashboard({ onLogout }) {
   const tabs = [
     { id: "categories", label: "Categories", icon: <FolderOpen size={18} />, component: <CategoryManager /> },
     { id: "words", label: "Words", icon: <BookOpen size={18} />, component: <WordManager /> },
+    { id: "addword", label: "Add Word", icon: <PlusCircle size={18} />, component: <WordManager defaultView="add" /> },
     { id: "newwords", label: "New Words", icon: <LayoutGrid size={18} />, component: <NewWords /> },
     { id: "hidden", label: "Hidden Words", icon: <EyeOff size={18} />, component: <HiddenWords /> },
   ];
 
-  const activeLabel = tabs.find(t => t.id === activeTab)?.label || "Sections";
+  const activeLabel = tabs.find((t) => t.id === activeTab)?.label || "Sections";
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(e.target)) {
         setMobileTabsOpen(false);
       }
     };
@@ -59,7 +60,7 @@ export default function Dashboard({ onLogout }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)]">
+    <div className="min-h-screen bg-[var(--color-background)] flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
         <h1 className="text-2xl font-fenix font-bold text-gradient">Lexisium Admin Dashboard</h1>
@@ -75,63 +76,73 @@ export default function Dashboard({ onLogout }) {
         </button>
       </header>
 
-      {/* Mobile Tabs (arrow dropdown) */}
-      <div ref={dropdownRef} className="bg-white border-b px-4 py-3 md:hidden relative">
-        <button
-          onClick={() => setMobileTabsOpen((prev) => !prev)}
-          aria-expanded={mobileTabsOpen}
-          className="w-full flex items-center justify-between px-4 py-2 rounded-lg border-2 border-gray-200 text-[var(--color-gunmetal)] hover:border-[var(--color-coral)] transition"
-        >
-          <span className="font-medium">{activeLabel}</span>
-          <ChevronDown
-            size={20}
-            className={`text-[var(--color-coral)] transition-transform ${mobileTabsOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        {mobileTabsOpen && (
-          <div className="absolute left-4 right-4 mt-2 bg-white border border-[var(--color-paynesgray)] rounded-lg shadow-lg z-10 overflow-hidden">
+      {/* Body: Sidebar + Content */}
+      <div className="flex flex-1">
+        {/* Sidebar (desktop/tablet) */}
+        <aside className="hidden md:flex flex-col w-64 bg-white border-r">
+          <div className="px-5 py-4 border-b">
+            <p className="text-xs font-semibold tracking-wide uppercase text-[var(--color-paynesgray)]">Sections</p>
+          </div>
+          <nav className="flex-1 py-4 space-y-1">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setMobileTabsOpen(false);
-                }}
-                className={`w-full flex items-center gap-2 px-4 py-3 text-left transition ${
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-left rounded-r-full transition-colors ${
                   activeTab === tab.id
                     ? "bg-[var(--color-coral)] text-white"
-                    : "text-[var(--color-gunmetal)] hover:bg-[var(--color-paynesgray)]/10"
+                    : "text-[var(--color-gunmetal)] hover:bg-[var(--color-background)]"
                 }`}
               >
                 {tab.icon}
-                <span className="font-medium">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
+          </nav>
+        </aside>
+
+        {/* Main content */}
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8 bg-[var(--color-background)]">
+          {/* Mobile section selector */}
+          <div ref={mobileDropdownRef} className="mb-4 md:hidden">
+            <button
+              onClick={() => setMobileTabsOpen((prev) => !prev)}
+              aria-expanded={mobileTabsOpen}
+              className="w-full flex items-center justify-between px-4 py-2 rounded-lg border-2 border-[var(--color-border)] bg-white text-[var(--color-gunmetal)] hover:border-[var(--color-coral)] transition"
+            >
+              <span className="font-medium">{activeLabel}</span>
+              <ChevronDown
+                size={20}
+                className={`text-[var(--color-coral)] transition-transform ${mobileTabsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {mobileTabsOpen && (
+              <div className="mt-2 bg-white border border-[var(--color-paynesgray)] rounded-lg shadow-lg z-10 overflow-hidden">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setMobileTabsOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2 px-4 py-3 text-left transition ${
+                      activeTab === tab.id
+                        ? "bg-[var(--color-coral)] text-white"
+                        : "text-[var(--color-gunmetal)] hover:bg-[var(--color-background)]"
+                    }`}
+                  >
+                    {tab.icon}
+                    <span className="font-medium">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {tabs.find((tab) => tab.id === activeTab)?.component}
+        </main>
       </div>
-
-      {/* Navigation Tabs (Desktop/Tablet) */}
-      <nav className="bg-white border-b px-6 hidden md:flex space-x-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 py-3 px-3 border-b-2 font-medium text-sm transition-all ${
-              activeTab === tab.id
-                ? "border-[var(--color-coral)] text-[var(--color-coral)]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* Main Content */}
-      <main className="px-6 py-8">{tabs.find((tab) => tab.id === activeTab)?.component}</main>
     </div>
   );
 }

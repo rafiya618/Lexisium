@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import GlobalKeyboard from "./components/GlobalKeyboard";
 import Home from "./components/Home";
 import AdminLogin from "./components/AdminLogin";
 import Dashboard from "./components/Dashboard";
 import AddWordPage from "./components/AddWordPage";
 import ExploreWords from "./components/ExploreWords";
+import { KeyboardProvider } from "./context/KeyboardContext";
 import { useState, useEffect } from "react";
 
 export default function App() {
@@ -24,18 +26,21 @@ export default function App() {
   };
 
   return (
-    <BrowserRouter>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/admin" element={isAdmin ? (
-          <Dashboard onLogout={handleLogout} />
-        ) : (
-          <AdminLogin onLogin={setIsAdmin} />
-        )} />
-        <Route path="/add-word/:categoryId" element={<AddWordPage />} />
-        <Route path="/explore-words" element={<ExploreWords />} />
-      </Routes>
-    </BrowserRouter>
+    <KeyboardProvider>
+      <BrowserRouter>
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/admin" element={isAdmin ? (
+            <Dashboard onLogout={handleLogout} />
+          ) : (
+            <AdminLogin onLogin={setIsAdmin} />
+          )} />
+          <Route path="/add-word/:categoryId" element={<AddWordPage />} />
+          <Route path="/explore-words" element={<ExploreWords />} />
+        </Routes>
+        <GlobalKeyboard />
+      </BrowserRouter>
+    </KeyboardProvider>
   );
 }

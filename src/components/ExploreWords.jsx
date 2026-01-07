@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { getApprovedWords, searchWord } from "../api/api";
-import { Search, BookText, Languages, Tag, Volume2, Image as ImageIcon, Info } from "lucide-react";
-import SearchBar from "../components/SearchBar";
+import { getApprovedWords } from "../api/api";
+import { Search, BookText, Languages, Tag, Volume2 } from "lucide-react";
+import { searchWords } from "../lib/searchUtils";
 
 export default function ExploreWords() {
   const [words, setWords] = useState([]);
+  const [allWords, setAllWords] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -14,143 +15,162 @@ export default function ExploreWords() {
 
   const loadWords = async () => {
     const approved = await getApprovedWords();
+    setAllWords(approved);
     setWords(approved);
   };
 
-  const handleSearch = async (query) => {
+  const handleSearch = (query) => {
     setSearch(query);
-    if (query.trim()) {
-      try {
-        const res = await searchWord(query);
-        setWords(res.data.words.filter((w) => w.status === "Approved"));
-      } catch (error) {
-        console.error("Search error:", error);
-      }
-    } else {
-      loadWords();
-    }
+    const filtered = searchWords(allWords, query);
+    setWords(filtered);
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] px-6 pb-10">
-      {/* Header */}
-      <h1 className="text-3xl font-fenix text-center mt-8 text-gradient tracking-wide">
-        Explore Words
-      </h1>
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text)] font-lato">
+      {/* Heading */}
+      <section className="px-4 sm:px-6 md:px-8 pt-10 pb-0">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-fenix font-bold text-center text-[var(--color-gunmetal-darker)] mb-4">
+          Explore Words
+        </h2>
+      </section>
 
       {/* Search Bar */}
-      <SearchBar
-        placeholder="Search words..."
-        value={search}
-        onChange={handleSearch}
-      />
-
-      {/* Words List */}
-      <div className="mt-6 space-y-4 max-w-6xl mx-auto ">
-        {words.length > 0 ? (
-          words.map((w) => (
-            <div
-              key={w._id}
-              className="flex flex-col md:flex-row md:items-center justify-between border border-[var(--color-border)] rounded-xl bg-[var(--color-background)] shadow-sm hover:shadow-md transition-all duration-200 px-6 py-4"
-            >
-              {/* Left Section: Word + Info */}
-              <div className="flex flex-col space-y-2 w-full">
-                {/* Word */}
-                <div className="flex items-center gap-2 text-[var(--color-gunmetal)]">
-                  <BookText className="text-[var(--color-coral)]" size={22} />
-                  <h2 className="text-2xl font-fenix">{w.word}</h2>
-                </div>
-
-                {/* Translations */}
-                <div className="ml-7 text-sm space-y-1 text-[var(--color-paynesgray-dark)]">
-                  {w.translation?.english && (
-                    <div className="flex items-center gap-2">
-                      <Languages size={16} className="text-blue-600" />
-                      <span className="font-semibold">English:</span>{" "}
-                      {w.translation.english}
-                    </div>
-                  )}
-                  {w.translation?.urdu && (
-                    <div className="flex items-center gap-2">
-                      <Languages size={16} className="text-green-600" />
-                      <span className="font-semibold">Urdu:</span>{" "}
-                      {w.translation.urdu}
-                    </div>
-                  )}
-                  {w.translation?.roman && (
-                    <div className="flex items-center gap-2">
-                      <Languages size={16} className="text-purple-600" />
-                      <span className="font-semibold">Roman:</span>{" "}
-                      {w.translation.roman}
-                    </div>
-                  )}
-                </div>
-
-                {/* Description */}
-                {w.description && (
-                  <div className="ml-7 flex items-start gap-2 text-sm text-[var(--color-paynesgray-dark)]">
-                    <Info size={16} className="text-[var(--color-coral-dark)] mt-[2px]" />
-                    <span>{w.description}</span>
-                  </div>
-                )}
-
-                {/* Category */}
-                {w.category && (
-  <span className="ml-7 mt-2 inline-flex items-center gap-1 bg-[var(--color-gunmetal)] text-white px-2.5 py-[2px] text-xs font-semibold rounded-full w-fit self-start">
-    <Tag size={12} /> {w.category.name}
-  </span>
-)}
-              </div>
-
-              {/* Right Section: Media */}
-              <div className="flex flex-col md:items-end items-start gap-3 mt-4 md:mt-0">
-                {/* Audio */}
-                {w.audio && (
-                  <div className="flex items-center gap-2">
-                    <Volume2
-                      size={18}
-                      className="text-[var(--color-paynesgray-dark)]"
-                    />
-                    <audio
-                      controls
-                      src={w.audio}
-                      className="h-8 w-44"
-                    ></audio>
-                  </div>
-                )}
-
-                {/* Image */}
-                {w.image ? (
-                  <div
-                    onClick={() => setSelectedImage(w.image)}
-                    className="relative group cursor-pointer"
-                  >
-                    <img
-                      src={w.image}
-                      alt={w.word}
-                      className="w-24 h-20 object-cover rounded-md border border-[var(--color-border)] group-hover:scale-105 transition-transform"
-                      onError={(e) => (e.target.style.display = "none")}
-                    />
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md transition-all">
-                      <ImageIcon size={20} className="text-white" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-gray-400 text-sm">
-                    <ImageIcon size={16} className="mr-1" /> No image
-                  </div>
-                )}
-              </div>
+      <section className="px-4 sm:px-6 md:px-8 pb-0">
+        <div className="w-full max-w-6xl lg:max-w-7xl mx-auto">
+          <div className="mb-4 flex gap-3">
+            <div className="flex-1 relative">
+              <Search
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={20}
+              />
+              <input
+                type="text"
+                placeholder="Search words, meanings, dialect..."
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 rounded-lg border border-[var(--color-coral)] hover:border-[var(--color-coral-dark)] focus:ring-1 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none text-[var(--color-gunmetal-darker)] font-lato shadow-sm bg-[var(--color-background)] transition-all"
+              />
             </div>
-          ))
-        ) : (
-          <div className="text-center text-[var(--color-silver-dark)] text-lg mt-20">
-            No approved words found.
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
-      {/* Image Popup Modal */}
+      {/* Words Grid */}
+      <section className="px-4 sm:px-6 md:px-8 pb-10">
+        <div className="w-full max-w-6xl lg:max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {words.length > 0 ? (
+              words.map((wordDoc) => (
+                <div
+                  key={wordDoc._id}
+                  className="h-full border border-[var(--color-coral)] rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 bg-[var(--color-background)] text-left overflow-hidden flex flex-col"
+                >
+                  {/* Card Content */}
+                  <div className="p-3.5 sm:p-4 flex-1 flex flex-col gap-3">
+                    {/* Category Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        {wordDoc.category && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <Tag size={14} className="text-[var(--color-coral)]" />
+                            <span className="text-xs sm:text-sm font-semibold text-[var(--color-gunmetal-darker)] truncate">
+                              {wordDoc.category.word}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dialects */}
+                    {wordDoc.words && wordDoc.words.length > 0 ? (
+                      <div className="mt-1 space-y-3">
+                        {wordDoc.words.map((dialectWord, idx) => (
+                          <div
+                            key={idx}
+                            className="pt-2 border-t border-gray-200 first:border-t-0 first:pt-0 space-y-2"
+                          >
+                            {/* Word + Dialect row */}
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm sm:text-base">
+                              <span className="font-semibold text-[var(--color-paynesgray)]">Word:</span>
+                              <span className="font-semibold text-[var(--color-gunmetal-darker)] mr-3">
+                                {dialectWord.word}
+                              </span>
+                              <span className="font-semibold text-[var(--color-paynesgray)]">Dialect:</span>
+                              <span className="uppercase tracking-wide text-[var(--color-paynesgray-dark)] text-xs sm:text-sm">
+                                {dialectWord.dialect}
+                              </span>
+                            </div>
+
+                            {/* Meanings section */}
+                            {dialectWord.meanings && dialectWord.meanings.length > 0 && (
+                              <div className="space-y-1 text-xs sm:text-sm">
+                                <div className="flex items-center gap-2 text-[var(--color-paynesgray)] font-semibold">
+                                  <Languages size={14} />
+                                  <span>Meanings</span>
+                                </div>
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 pl-6">
+                                  {dialectWord.meanings.map((meaning, midx) => (
+                                    <span
+                                      key={midx}
+                                      className="text-[var(--color-gunmetal-darker)] font-lato"
+                                    >
+                                      <span className="font-semibold text-[var(--color-paynesgray)] mr-1">
+                                        {`${meaning.language?.charAt(0).toUpperCase()}${meaning.language?.slice(1).toLowerCase()}`}:
+                                      </span>
+                                      {meaning.value}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Description section */}
+                            {dialectWord.description && (
+                              <div className="space-y-1 text-xs sm:text-sm text-gray-700 font-lato leading-snug">
+                                <div className="flex items-center gap-2 text-[var(--color-paynesgray)] font-semibold">
+                                  <BookText size={14} />
+                                  <span>Description</span>
+                                </div>
+                                <p className="pl-6">{dialectWord.description}</p>
+                              </div>
+                            )}
+
+                            {/* Audio section */}
+                            {dialectWord.audio && (
+                              <div className="space-y-1 text-xs sm:text-sm">
+                                <div className="flex items-center gap-2 text-[var(--color-paynesgray)] font-semibold">
+                                  <Volume2 size={14} className="text-[var(--color-paynesgray)]" />
+                                  <span>Audio</span>
+                                </div>
+                                <div className="pl-6">
+                                  <audio
+                                    controls
+                                    src={dialectWord.audio}
+                                    className="w-full h-8 rounded-lg"
+                                    controlsList="nodownload"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs sm:text-sm text-gray-500 italic py-1">No dialect variants found.</p>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full text-center text-[var(--color-silver-dark)] text-lg mt-12">
+                No approved words found.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Image Popup Modal (kept for future image support) */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"

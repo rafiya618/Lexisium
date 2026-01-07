@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { getCategories, addWord, getWordsByCategory } from "../api/api";
 import WordForm from "./WordForm";
 import CustomAlert from "./CustomAlert";
-import VirtualKeyboard from "./VirtualKeyboard";
-import { Search, Keyboard, X, Volume2, Image as ImageIcon } from "lucide-react";
+import { Search, X, Volume2, Image as ImageIcon, BookText, Layers, Languages, Type } from "lucide-react";
+import { searchWords } from "../lib/searchUtils";
+import { KeyboardContext } from "../context/KeyboardContext";
 
 export default function AddWordPage() {
+  const keyboardContext = useContext(KeyboardContext);
+  const { registerInput, unregisterInput, focusInput } = keyboardContext || {};
+  const searchInputRef = useRef(null);
+
   const { categoryId } = useParams();
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -15,7 +20,25 @@ export default function AddWordPage() {
   const [filteredWords, setFilteredWords] = useState([]);
   const [selectedWord, setSelectedWord] = useState(null); // 🔹 for popup modal
   const [alert, setAlert] = useState({ message: "", type: "" });
-  const [showKeyboard, setShowKeyboard] = useState(false);
+
+  // Register search input with keyboard context
+  useEffect(() => {
+    if (registerInput && searchInputRef.current) {
+      registerInput("addwordpage-search", searchInputRef.current);
+    }
+
+    return () => {
+      if (unregisterInput) {
+        unregisterInput("addwordpage-search");
+      }
+    };
+  }, [registerInput, unregisterInput]);
+
+  const handleSearchInputClick = () => {
+    if (focusInput) {
+      focusInput("addwordpage-search");
+    }
+  };
 
   const showAlert = (message, type = "success") => {
     setAlert({ message, type });
@@ -49,14 +72,8 @@ export default function AddWordPage() {
 
   // Search filter
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredWords(words);
-    } else {
-      const filtered = words.filter((w) =>
-        w.word.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredWords(filtered);
-    }
+    const filtered = searchWords(words, searchTerm);
+    setFilteredWords(filtered);
   }, [searchTerm, words]);
 
   // Handle add word
@@ -71,19 +88,11 @@ export default function AddWordPage() {
     }
   };
 
-  const handleKeyPress = (key) => {
-    if (key === "BACKSPACE") {
-      setSearchTerm(searchTerm.slice(0, -1));
-    } else {
-      setSearchTerm(searchTerm + key);
-    }
-  };
-
   if (!selectedCategory)
     return <div className="p-6 text-[var(--color-paynesgray)]">Loading category...</div>;
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] bg-[var(--color-lightgray)]">
+    <div className="flex flex-col lg:flex-row h-full lg:h-[calc(100vh-4rem)] bg-[var(--color-lightgray)]">
       {/* Custom Alert */}
       <CustomAlert
         message={alert.message}
@@ -92,87 +101,84 @@ export default function AddWordPage() {
       />
 
       {/* Left: Word List */}
-      <div className="md:w-1/2 w-full border-r border-[var(--color-paynesgray)] p-4 overflow-y-auto bg-[var(--color-background)]">
-        <h2 className="text-xl font-semibold mb-3 text-[var(--color-paynesgray)]">
-          {selectedCategory.name} Words
+      <div className="lg:w-1/2 w-full border-r border-[var(--color-paynesgray)] p-4 lg:p-6 overflow-y-auto bg-[var(--color-background)] min-h-screen lg:min-h-full">
+        <h2 className="text-2xl lg:text-3xl font-bold mb-1 text-[var(--color-gunmetal-darker)]">
+          {selectedCategory.word} Words
         </h2>
+        <p className="text-xs lg:text-sm text-gray-600 mb-4">
+          Showing all approved words in this category.
+        </p>
 
         {/* Search Bar */}
-        <div className="mb-4">
-          <div className="relative">
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search words..."
+              placeholder="Search words, meanings, dialect..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-12 py-2.5 border-2 border-[var(--color-coral)] rounded-lg outline-none focus:ring-2 focus:ring-[var(--color-coral)] font-lato"
+              onFocus={handleSearchInputClick}
+              className="w-full pl-10 pr-4 py-2.5 border border-[var(--color-paynesgray)] rounded-lg outline-none focus:ring-1 focus:ring-[var(--color-paynesgray)] font-lato"
             />
-            <button
-              onClick={() => setShowKeyboard(!showKeyboard)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--color-coral)] hover:text-[var(--color-coral-dark)] transition-colors"
-              title="Toggle Virtual Keyboard"
-            >
-              <Keyboard size={22} />
-            </button>
           </div>
-
-          {/* Virtual Keyboard */}
-          {showKeyboard && (
-            <div className="mt-3">
-              <VirtualKeyboard
-                language="urdu"
-                isVisible={showKeyboard}
-                onToggle={() => setShowKeyboard(false)}
-                onKeyPress={handleKeyPress}
-              />
-            </div>
-          )}
         </div>
+
+        {/* Virtual Keyboard removed - uses global navbar keyboard */}
 
         {/* Words Table */}
         {filteredWords.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-300 text-left rounded-lg overflow-hidden">
-              <thead className="bg-[var(--color-coral)] text-white">
-                <tr>
-                  <th className="px-4 py-2 border-r border-gray-200">Word</th>
-                  <th className="px-4 py-2 border-r border-gray-200">English</th>
-                  <th className="px-4 py-2 border-r border-gray-200">Urdu</th>
-                  <th className="px-4 py-2">Roman</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredWords.map((w) => (
-                  <tr
-                    key={w._id}
-                    onClick={() => setSelectedWord(w)}
-                    className="cursor-pointer hover:bg-[var(--color-lightgray)] transition border-b border-gray-200"
-                  >
-                    <td className="px-4 py-2 font-medium text-[var(--color-coral-dark)]">{w.word}</td>
-                    <td className="px-4 py-2">{w.translation?.english || ""}</td>
-                    <td className="px-4 py-2">{w.translation?.urdu || ""}</td>
-                    <td className="px-4 py-2">{w.translation?.roman || ""}</td>
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm lg:text-base">
+                <thead className="bg-gradient-to-r from-[var(--color-coral)] to-[var(--color-coral-dark)] text-white sticky top-0">
+                  <tr>
+                    <th className="px-5 py-3 font-bold text-xs lg:text-sm">Word</th>
+                    <th className="px-5 py-3 font-bold text-xs lg:text-sm">Dialect</th>
+                    <th className="px-5 py-3 font-bold text-xs lg:text-sm hidden sm:table-cell">English</th>
+                    <th className="px-5 py-3 font-bold text-xs lg:text-sm hidden md:table-cell">Urdu</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredWords.map((wordDoc) => (
+                    wordDoc.words && wordDoc.words.map((dialectWord, dialectIdx) => (
+                      <tr
+                        key={`${wordDoc._id}-${dialectIdx}`}
+                        onClick={() => setSelectedWord(wordDoc)}
+                        className="cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        <td className="px-5 py-3 font-semibold text-[var(--color-gunmetal-darker)]">
+                          {dialectWord.word}
+                        </td>
+                        <td className="px-5 py-3 text-sm text-gray-600">{dialectWord.dialect}</td>
+                        <td className="px-5 py-3 text-sm hidden sm:table-cell">
+                          {dialectWord.meanings?.find((m) => m.language === "english")?.value || "-"}
+                        </td>
+                        <td className="px-5 py-3 text-sm hidden md:table-cell">
+                          {dialectWord.meanings?.find((m) => m.language === "urdu")?.value || "-"}
+                        </td>
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 italic mt-4">
+          <p className="text-sm text-gray-500 italic mt-4 text-center">
             No words found in this category.
           </p>
         )}
       </div>
 
       {/* Right: Add Word Form */}
-      <div className="md:w-1/2 w-full p-6 overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4 text-[var(--color-paynesgray)]">
-          Add a New Word to{" "}
-          <span className="text-[var(--color-coral)]">{selectedCategory.name}</span>
+      <div className="lg:w-1/2 w-full p-4 lg:p-6 overflow-y-auto min-h-screen lg:min-h-full">
+        <h2 className="text-2xl lg:text-3xl font-bold mb-2 text-[var(--color-gunmetal)]">
+          Add a New Word
         </h2>
 
-        <div className="bg-[var(--color-background)] p-4 rounded-xl">
+        <div className="bg-white p-4 lg:p-6 rounded-xl border border-gray-200 shadow-sm">
           <WordForm
             categories={categories}
             onSubmit={handleAddWord}
@@ -185,108 +191,139 @@ export default function AddWordPage() {
 
       {/* Word Detail Popup */}
       {selectedWord && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-11/12 md:w-2/3 lg:w-1/2 max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl relative animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-[var(--color-coral)] to-[var(--color-coral-dark)] text-white p-6 rounded-t-2xl">
-              <button
-                onClick={() => setSelectedWord(null)}
-                className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
-                aria-label="Close"
-              >
-                <X size={24} />
-              </button>
-              <h2 className="text-3xl font-bold font-fenix pr-12">
-                {selectedWord.word}
-              </h2>
-              {selectedWord.category && (
-                <p className="text-white/90 mt-1 font-lato">
-                  Category: {selectedWord.category.name}
-                </p>
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              {/* Translations */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {selectedWord.translation?.english && (
-                  <div className="p-3 bg-[var(--color-background)] border-l-4 border-[var(--color-coral)] rounded-lg">
-                    <p className="text-xs font-semibold text-[var(--color-coral)] mb-1">English</p>
-                    <p className="text-[var(--color-gunmetal)] font-lato">{selectedWord.translation.english}</p>
-                  </div>
-                )}
-                {selectedWord.translation?.urdu && (
-                  <div className="p-3 bg-[var(--color-background)] border-l-4 border-[var(--color-paynesgray)] rounded-lg">
-                    <p className="text-xs font-semibold text-[var(--color-paynesgray)] mb-1">Urdu</p>
-                    <p className="text-[var(--color-gunmetal)] font-lato text-right">{selectedWord.translation.urdu}</p>
-                  </div>
-                )}
-                {selectedWord.translation?.roman && (
-                  <div className="p-3 bg-[var(--color-background)] border-l-4 border-[var(--color-gunmetal)] rounded-lg">
-                    <p className="text-xs font-semibold text-[var(--color-gunmetal)] mb-1">Roman</p>
-                    <p className="text-[var(--color-paynesgray)] font-lato">{selectedWord.translation.roman}</p>
-                  </div>
-                )}
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedWord(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+	    className="bg-white rounded-2xl p-4 md:p-6 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-4">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 text-center">
+                  <h2 className="text-2xl md:text-3xl font-bold font-fenix text-[var(--color-gunmetal-darker)] leading-snug">
+                    {selectedWord.words && selectedWord.words.length > 0 ? selectedWord.words[0].word : "Word"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWord(null)}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-[var(--color-coral)] text-[var(--color-coral)] hover:bg-[var(--color-coral)]/5 transition"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
               </div>
 
-              {/* Description */}
-              {selectedWord.description && (
-                <div className="p-4 bg-[var(--color-background)] border border-gray-200 rounded-lg">
-                  <p className="text-sm font-semibold text-[var(--color-gunmetal)] mb-2">Description</p>
-                  <p className="text-[var(--color-paynesgray)] font-lato leading-relaxed">{selectedWord.description}</p>
+              {/* Category + Dialect variants */}
+              {selectedWord.words && selectedWord.words.length > 0 && (
+                <div className="space-y-5">
+                  {/* Category section */}
+                  {selectedWord.category && (
+                    <div className="pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <Layers className="text-[var(--color-paynesgray)]" size={22} />
+                        <div className="space-y-1 text-sm md:text-base text-[var(--color-gunmetal)]">
+                          <p className="text-base md:text-lg">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Category:</span>
+                            <span className="font-bold text-[var(--color-gunmetal-darker)]">
+                              {selectedWord.category.word}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedWord.words.map((dialectWord, idx) => (
+                    <div
+                      key={idx}
+                      className="space-y-3"
+                    >
+                      {/* Word & Dialect */}
+                      <div className="flex items-start gap-3 mb-3 pb-2 border-b border-gray-200">
+                        <Type className="mt-0.5 text-[var(--color-paynesgray)]" size={20} />
+                        <div className="space-y-1 text-sm md:text-base text-[var(--color-gunmetal)]">
+                          <p className="text-base md:text-lg">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Word:</span>
+                            <span className="font-bold text-[var(--color-gunmetal-darker)]">{dialectWord.word}</span>
+                          </p>
+                          <p className="text-xs md:text-sm">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Dialect:</span>
+                            <span className="uppercase tracking-wide text-gray-600 font-medium">{dialectWord.dialect}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 text-sm md:text-base text-[var(--color-gunmetal)]">
+                        {/* Meanings */}
+                        {dialectWord.meanings && dialectWord.meanings.length > 0 && (
+                          <div className="space-y-2 pt-3">
+                            <div className="flex items-center gap-3">
+                              <Languages className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)]">
+                                Meanings
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 pl-8">
+                              {dialectWord.meanings.map((meaning, midx) => (
+                                <p
+                                  key={midx}
+                                  className="text-sm md:text-base text-[var(--color-gunmetal-darker)] font-lato"
+                                >
+                                  <span className="font-semibold text-[var(--color-paynesgray)] text-xs md:text-sm mr-1">
+                                    {`${meaning.language?.charAt(0).toUpperCase()}${meaning.language?.slice(1).toLowerCase()}`}:
+                                  </span>
+                                  {meaning.value}
+                                </p>
+                              ))}
+                           </div>
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {dialectWord.description && (
+                          <div className="space-y-2 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-3">
+                              <BookText className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)] mb-0">
+                                Description
+                              </p>
+                            </div>
+                            <p className="text-sm md:text-base text-gray-700 font-lato leading-relaxed pl-8">
+                              {dialectWord.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Audio */}
+                        {dialectWord.audio && (
+                          <div className="space-y-2 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-3">
+                              <Volume2 className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)] mb-0">
+                                Media
+                              </p>
+                            </div>
+                            <div className="pl-8">
+                              <audio
+                                controls
+                                src={dialectWord.audio}
+                                className="w-full h-9 rounded-lg"
+                                controlsList="nodownload"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-
-              {/* Media Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Audio */}
-                {selectedWord.audio && (
-                  <div className="p-4 bg-[var(--color-background)] border-2 border-[var(--color-coral)] rounded-lg">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-coral)] mb-3">
-                      <Volume2 size={18} />
-                      <span>Audio Pronunciation</span>
-                    </div>
-                    <audio 
-                      controls 
-                      src={selectedWord.audio} 
-                      className="w-full rounded-lg"
-                      style={{ height: '40px' }}
-                    >
-                      Your browser does not support audio playback.
-                    </audio>
-                  </div>
-                )}
-
-                {/* Image */}
-                {selectedWord.image && (
-                  <div className="p-4 bg-[var(--color-background)] border-2 border-[var(--color-paynesgray)] rounded-lg">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-paynesgray)] mb-3">
-                      <ImageIcon size={18} />
-                      <span>Visual Reference</span>
-                    </div>
-                    <img
-                      src={selectedWord.image}
-                      alt={selectedWord.word}
-                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-300 shadow-sm"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<p class="text-sm text-gray-500 italic">Image failed to load</p>';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t-2 border-gray-200 p-4 rounded-b-2xl">
-              <button
-                onClick={() => setSelectedWord(null)}
-                className="w-full bg-[var(--color-coral)] text-white py-3 rounded-lg font-semibold hover:bg-[var(--color-coral-dark)] transition-colors shadow-sm"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

@@ -1,43 +1,63 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import {
-  getWords, approveWord, hideWord, deleteWord,
-  updateWord, searchWord, addWord, getCategories,
-  getApprovedWords
+  getApprovedWords,
+  hideWord,
+  deleteWord,
+  addWord,
+  getCategories,
 } from "../api/api";
-import WordForm from "./WordForm";
 import {
-  CheckCircle, EyeOff, Pencil, Trash2, PlusCircle, XCircle,
-  Search, Volume2, Image as ImageIcon, Keyboard
+  EyeOff,
+  Trash2,
+  PlusCircle,
+  XCircle,
+  Search,
+  X,
+  Eye,
+  Layers,
+  Type,
+  Languages,
+  BookText,
+  Volume2,
 } from "lucide-react";
 import CustomAlert from "./CustomAlert";
 import ConfirmDialog from "./ConfirmDialog";
-import VirtualKeyboard from "./VirtualKeyboard";
-import KeyboardInput from "./KeyboardInput";
-import AudioRecorder from "./AudioRecorder";
+import WordForm from "./WordForm";
+import { searchWords } from "../lib/searchUtils";
+import { KeyboardContext } from "../context/KeyboardContext";
 
-export default function WordManager() {
+export default function WordManager({ defaultView = "list" }) {
+  const keyboardContext = useContext(KeyboardContext);
+  const { registerInput, unregisterInput, focusInput } = keyboardContext || {};
+  const searchInputRef = useRef(null);
+  
   const [words, setWords] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingWord, setEditingWord] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editForm, setEditForm] = useState({
-    word: "",
-    translation: { english: "", urdu: "", roman: "" },
-    description: "",
-    audio: null,
-    image: null,
-  });
+  const [selectedWord, setSelectedWord] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [viewMode, setViewMode] = useState(defaultView); // "list" | "add"
   const [alert, setAlert] = useState({ message: "", type: "" });
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: "", onConfirm: null });
-  const [showEditKeyboard, setShowEditKeyboard] = useState(false);
-  const [editKeyboardField, setEditKeyboardField] = useState("");
-  const [showSearchKeyboard, setShowSearchKeyboard] = useState(false);
+  const [filteredWords, setFilteredWords] = useState([]);
+
+  // Register search input with keyboard context
+  useEffect(() => {
+    if (registerInput && searchInputRef.current) {
+      registerInput("wordmanager-search", searchInputRef.current);
+    }
+
+    return () => {
+      if (unregisterInput) {
+        unregisterInput("wordmanager-search");
+      }
+    };
+  }, [registerInput, unregisterInput]);
 
   const load = async () => {
     try {
-      setWords(await getApprovedWords());
-      setCategories(await getCategories());
+      const data = await getApprovedWords();
+      setWords(data);
+      setFilteredWords(data);
     } catch (error) {
       console.error("Error loading data:", error);
     }
@@ -45,16 +65,29 @@ export default function WordManager() {
 
   useEffect(() => { load(); }, []);
 
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-    if (query.trim()) {
+  // Load categories for Add Word form
+  useEffect(() => {
+    const loadCategories = async () => {
       try {
-        const res = await searchWord(query);
-        setWords(res.data.words);
+        const data = await getCategories();
+        setCategories(data);
       } catch (error) {
-        console.error("Error searching words:", error);
+        console.error("Error loading categories:", error);
       }
-    } else load();
+    };
+    loadCategories();
+  }, []);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    const filtered = searchWords(words, query);
+    setFilteredWords(filtered);
+  };
+
+  const handleSearchInputClick = () => {
+    if (focusInput) {
+      focusInput("wordmanager-search");
+    }
   };
 
   const showAlert = (message, type = "success") => {
@@ -92,6 +125,7 @@ export default function WordManager() {
         await deleteWord(id);
         load();
         showAlert("Word deleted successfully!", "success");
+        setSelectedWord(null);
       } catch {
         showAlert("Error deleting word.", "error");
       }
@@ -99,105 +133,38 @@ export default function WordManager() {
     });
   };
 
-  const startEditing = (word) => {
-    setEditingWord(word._id);
-    setEditForm({
-      word: word.word,
-      translation: {
-        english: word.translation?.english || "",
-        urdu: word.translation?.urdu || "",
-        roman: word.translation?.roman || "",
-      },
-      description: word.description || "",
-      audio: null,
-      image: null,
-    });
-  };
-
-  const handleUpdate = async (id) => {
+  const handleAddWord = async (formData) => {
     try {
-      const formData = new FormData();
-      formData.append("word", editForm.word);
-      formData.append("translation", JSON.stringify(editForm.translation));
-      formData.append("description", editForm.description);
-      
-      if (editForm.audio) formData.append("audio", editForm.audio);
-      if (editForm.image) formData.append("image", editForm.image);
-
-      await updateWord(id, formData);
-      setEditingWord(null);
+      if (!formData.has("category")) {
+        showAlert("Please select a category.", "error");
+        return;
+      }
+      await addWord(formData);
+      showAlert("✅ Word added successfully!", "success");
       load();
-      showAlert("Word updated successfully!", "success");
-    } catch {
-      showAlert("Error updating word.", "error");
-    }
-  };
-
-  const handleEditKeyPress = (key) => {
-    if (key === "BACKSPACE") {
-      if (editKeyboardField === "word") {
-        setEditForm({ ...editForm, word: editForm.word.slice(0, -1) });
-      } else if (editKeyboardField === "urdu") {
-        setEditForm({
-          ...editForm,
-          translation: { ...editForm.translation, urdu: editForm.translation.urdu.slice(0, -1) }
-        });
-      } else if (editKeyboardField === "roman") {
-        setEditForm({
-          ...editForm,
-          translation: { ...editForm.translation, roman: editForm.translation.roman.slice(0, -1) }
-        });
-      } else if (editKeyboardField === "description") {
-        setEditForm({ ...editForm, description: editForm.description.slice(0, -1) });
-      }
-    } else {
-      if (editKeyboardField === "word") {
-        setEditForm({ ...editForm, word: editForm.word + key });
-      } else if (editKeyboardField === "urdu") {
-        setEditForm({
-          ...editForm,
-          translation: { ...editForm.translation, urdu: editForm.translation.urdu + key }
-        });
-      } else if (editKeyboardField === "roman") {
-        setEditForm({
-          ...editForm,
-          translation: { ...editForm.translation, roman: editForm.translation.roman + key }
-        });
-      } else if (editKeyboardField === "description") {
-        setEditForm({ ...editForm, description: editForm.description + key });
-      }
+    } catch (error) {
+      showAlert("Error adding word: " + (error.response?.data?.message || "Unknown error"), "error");
     }
   };
 
   const handleSearchKeyPress = (key) => {
     if (key === "BACKSPACE") {
-      setSearchQuery(searchQuery.slice(0, -1));
+      handleSearch(searchQuery.slice(0, -1));
+    } else if (key === "ENTER") {
+      setShowSearchKeyboard(false);
     } else {
-      setSearchQuery(searchQuery + key);
-    }
-  };
-
-  const handleAddWord = async (formData) => {
-    try {
-      await addWord(formData);
-      setShowAddForm(false);
-      load();
-      showAlert("Word added successfully!", "success");
-    } catch {
-      showAlert("Error adding word.", "error");
+      handleSearch(searchQuery + key);
     }
   };
 
   return (
     <>
-      {/* Custom Alert */}
       <CustomAlert
         message={alert.message}
         type={alert.type}
         onClose={() => setAlert({ message: "", type: "" })}
       />
 
-      {/* Confirm Dialog */}
       <ConfirmDialog
         message={confirmDialog.message}
         isOpen={confirmDialog.isOpen}
@@ -205,360 +172,311 @@ export default function WordManager() {
         onCancel={() => setConfirmDialog({ isOpen: false, message: "", onConfirm: null })}
       />
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-3xl font-bold text-gray-800 tracking-tight">
-          Word Management
-        </h3>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-sm transition-all
-            ${showAddForm
-              ? "bg-gray-600 text-white hover:bg-gray-700"
-              : "bg-[var(--color-coral)] text-white hover:bg-[var(--color-coral-dark)]"
-            }`}
-        >
-          {showAddForm ? <><XCircle size={18} /> Cancel</> : <><PlusCircle size={18} /> Add Word</>}
-        </button>
-      </div>
-
-      {/* Add Word Form */}
-      {showAddForm && (
-        <div className="mb-6 bg-[var(--color-background)] shadow rounded-lg p-5 border border-gray-100">
-          <h4 className="text-lg font-semibold mb-3 text-gray-800">Add New Word</h4>
-          <WordForm
-            categories={categories}
-            onSubmit={handleAddWord}
-            onCancel={() => setShowAddForm(false)}
-            submitLabel="Add Word"
-          />
-        </div>
-      )}
-
-      {/* Search Bar */}
-      <div className="mb-5">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            placeholder="Search words..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10 pr-14 py-3.5 w-full rounded-xl border-2 border-gray-300 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none text-gray-800 font-lato shadow-sm transition-all"
-          />
-          <button
-            onClick={() => setShowSearchKeyboard(!showSearchKeyboard)}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[var(--color-coral)] hover:text-[var(--color-coral-dark)] transition-colors"
-            title="Toggle Virtual Keyboard"
-          >
-            <Keyboard size={22} />
-          </button>
+      <div className="p-4 md:p-6 bg-[var(--color-background)] rounded-lg">
+        {/* Header + local view switcher */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <h1 className="text-3xl md:text-4xl font-bold text-[var(--color-gunmetal-darker)]">Words</h1>
+          <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-white overflow-hidden self-start">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-[var(--color-coral)] text-white"
+                  : "text-[var(--color-gunmetal)] hover:bg-[var(--color-background)]"
+              }`}
+            >
+              Word List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("add")}
+              className={`px-4 py-2 text-sm font-medium border-l border-[var(--color-border)] transition-colors ${
+                viewMode === "add"
+                  ? "bg-[var(--color-coral)] text-white"
+                  : "text-[var(--color-gunmetal)] hover:bg-[var(--color-background)]"
+              }`}
+            >
+              Add Word
+            </button>
+          </div>
         </div>
 
-        {/* Virtual Keyboard for Search */}
-        {showSearchKeyboard && (
-          <div className="mt-4">
-            <VirtualKeyboard
-              language="urdu"
-              isVisible={showSearchKeyboard}
-              onToggle={() => setShowSearchKeyboard(false)}
-              onKeyPress={handleSearchKeyPress}
+        {/* List view */}
+        {viewMode === "list" && (
+          <>
+            {/* Search Bar */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search by word, dialect, meaning, or category..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onFocus={handleSearchInputClick}
+                  className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-300 focus:ring-1 focus:ring-[var(--color-paynesgray)] focus:border-[var(--color-paynesgray)] focus:outline-none text-gray-800 font-lato shadow-sm transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Words Table */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+              {filteredWords.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-[var(--color-coral)] to-[var(--color-coral-dark)] text-white sticky top-0">
+                      <tr>
+                        <th className="px-6 py-4 text-left font-bold text-sm">Word</th>
+                        <th className="px-6 py-4 text-left font-bold text-sm">Dialect</th>
+                        <th className="px-6 py-4 text-left font-bold text-sm hidden sm:table-cell">Category</th>
+                        <th className="px-6 py-4 text-left font-bold text-sm hidden md:table-cell">Meaning (EN)</th>
+                        <th className="px-6 py-4 text-center font-bold text-sm">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredWords.map((wordDoc) =>
+                        wordDoc.words?.map((dialectWord, dialectIdx) => (
+                          <tr
+                            key={`${wordDoc._id}-${dialectIdx}`}
+                            className="hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <td className="px-6 py-4">
+                              <button
+                                onClick={() => setSelectedWord(wordDoc)}
+                                className="font-semibold text-[var(--color-gunmetal-darker)] hover:text-[var(--color-paynesgray-dark)] transition"
+                              >
+                                {dialectWord.word}
+                              </button>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-gray-600">{dialectWord.dialect}</span>
+                            </td>
+                            <td className="px-6 py-4 hidden sm:table-cell">
+                              <span className="inline-block bg-[var(--color-silver-light)] text-[var(--color-gunmetal-darker)] px-3 py-1 rounded-full text-xs font-semibold">
+                                {wordDoc.category?.word}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 hidden md:table-cell">
+                              <span className="text-sm text-gray-700">
+                                {dialectWord.meanings?.find((m) => m.language === "english")?.value || "-"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex justify-center gap-2">
+                                <button
+                                  onClick={() => setSelectedWord(wordDoc)}
+                                  title="View Details"
+                                  className="p-2 hover:bg-[var(--color-silver-light)]/70 text-[var(--color-paynesgray)] rounded-lg transition"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleHide(wordDoc._id)}
+                                  title="Hide Word"
+                                  className="p-2 hover:bg-[var(--color-paynesgray-light)]/70 text-[var(--color-paynesgray-dark)] rounded-lg transition"
+                                >
+                                  <EyeOff size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(wordDoc._id)}
+                                  title="Delete Word"
+                                  className="p-2 hover:bg-[var(--color-coral-light)]/70 text-[var(--color-coral-dark)] rounded-lg transition"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-12 text-center text-gray-500">
+                  <p className="text-lg font-semibold">No words found</p>
+                  <p className="text-sm mt-2">Try adjusting your search or add a new word</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Add view */}
+        {viewMode === "add" && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+            <h2 className="text-xl md:text-2xl font-bold text-[var(--color-gunmetal-darker)] mb-4">
+              Add a New Word
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Fill in the word details and select a category.
+            </p>
+            <WordForm
+              categories={categories}
+              onSubmit={handleAddWord}
+              submitLabel="Add Word"
             />
           </div>
         )}
       </div>
 
-      {/* Word List */}
-      <div className="bg-[var(--color-background)] shadow border rounded-lg overflow-hidden">
-        {words.length > 0 ? (
-          <div className="divide-y divide-gray-300">
-            {words.map((w) => (
-              <div key={w._id} className="p-5 hover:bg-gray-200 transition">
-                {editingWord === w._id ? (
-                  <div className="space-y-4 bg-gradient-to-br from-paynesgray/5 to-paynesgray/10 p-6 rounded-xl">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Edit Word</h4>
-                    
-                    {/* Pashto Word */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Pashto Word:</label>
-                      <div className="relative">
-                        <input
-                          placeholder="Pashto Word"
-                          value={editForm.word}
-                          onChange={(e) => setEditForm({ ...editForm, word: e.target.value })}
-                          className="border-2 border-gray-300 p-3 w-full rounded-lg text-gray-600 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none pr-12"
-                        />
-                        <button
-                          onClick={() => {
-                            setEditKeyboardField("word");
-                            setShowEditKeyboard(!showEditKeyboard);
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-gray-100 transition"
-                        >
-                          <Keyboard size={20} className="text-[var(--color-coral)]" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* English Translation */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">English Translation:</label>
-                      <input
-                        placeholder="English Translation"
-                        value={editForm.translation.english}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            translation: { ...editForm.translation, english: e.target.value },
-                          })
-                        }
-                        className="border-2 border-gray-300 p-3 w-full rounded-lg text-gray-600 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none"
-                      />
-                    </div>
-                    
-                    {/* Urdu Translation */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Urdu Translation:</label>
-                      <div className="relative">
-                        <input
-                          placeholder="Urdu Translation"
-                          value={editForm.translation.urdu}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              translation: { ...editForm.translation, urdu: e.target.value },
-                            })
-                          }
-                          className="border-2 border-gray-300 p-3 w-full rounded-lg text-gray-600 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none pr-12"
-                        />
-                        <button
-                          onClick={() => {
-                            setEditKeyboardField("urdu");
-                            setShowEditKeyboard(!showEditKeyboard);
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-gray-100 transition"
-                        >
-                          <Keyboard size={20} className="text-[var(--color-coral)]" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Roman Translation */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Roman Translation:</label>
-                      <div className="relative">
-                        <input
-                          placeholder="Roman Translation"
-                          value={editForm.translation.roman}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              translation: { ...editForm.translation, roman: e.target.value },
-                            })
-                          }
-                          className="border-2 border-gray-300 p-3 w-full rounded-lg text-gray-600 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none pr-12"
-                        />
-                        <button
-                          onClick={() => {
-                            setEditKeyboardField("roman");
-                            setShowEditKeyboard(!showEditKeyboard);
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-gray-100 transition"
-                        >
-                          <Keyboard size={20} className="text-[var(--color-coral)]" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Description */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Description:</label>
-                      <div className="relative">
-                        <textarea
-                          placeholder="Description"
-                          value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          rows="3"
-                          className="border-2 border-gray-300 p-3 w-full rounded-lg text-gray-600 focus:ring-2 focus:ring-[var(--color-coral)] focus:border-[var(--color-coral)] focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Virtual Keyboard */}
-                    {showEditKeyboard && (
-                      <div className="mt-3">
-                        <VirtualKeyboard
-                          language={editKeyboardField === "word" ? "pashto" : editKeyboardField === "urdu" ? "urdu" : "roman"}
-                          onKeyPress={handleEditKeyPress}
-                          isVisible={showEditKeyboard}
-                          onToggle={() => setShowEditKeyboard(false)}
-                        />
-                      </div>
-                    )}
-
-                    {/* Image Upload */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Update Image (Optional):</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setEditForm({ ...editForm, image: e.target.files[0] })}
-                        className="border-2 border-gray-300 p-3 w-full rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[var(--color-coral)] file:text-white file:cursor-pointer hover:file:bg-[var(--color-coral-dark)] transition-all"
-                      />
-                      {editForm.image && (
-                        <p className="text-sm text-green-600 mt-2 font-lato">
-                          ✓ New image selected: {editForm.image.name}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Audio Upload */}
-                    <div>
-                      <label className="block mb-2 font-semibold text-gray-700">Update Audio (Optional, Max 6 seconds):</label>
-                      <AudioRecorder 
-                        onAudioRecorded={(audioBlob) => {
-                          if (audioBlob) {
-                            setEditForm({ ...editForm, audio: audioBlob });
-                            showAlert("Audio recorded successfully", "success");
-                          }
-                        }}
-                        maxDuration={6}
-                      />
-                      {editForm.audio && (
-                        <p className="text-sm text-green-600 mt-2 font-lato">
-                          ✓ New audio recorded
-                        </p>
-                      )}
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        onClick={() => handleUpdate(w._id)}
-                        className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:shadow-lg transition-all font-lato font-semibold"
-                      >
-                        <CheckCircle size={18} /> Save Changes
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingWord(null);
-                          setShowEditKeyboard(false);
-                        }}
-                        className="flex items-center gap-2 bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-all font-lato font-semibold"
-                      >
-                        <XCircle size={18} /> Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="lg:col-span-2">
-                      <div className="font-semibold text-xl text-gray-900 mb-2">{w.word}</div>
-
-                      {/* Translations */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-                        {w.translation?.english && (
-                          <div className="text-sm p-2 bg-blue-50 border border-blue-100 rounded">
-                            <span className="font-medium text-blue-600">English:</span><br />
-                            {w.translation.english}
-                          </div>
-                        )}
-                        {w.translation?.urdu && (
-                          <div className="text-sm p-2 bg-green-50 border border-green-100 rounded">
-                            <span className="font-medium text-green-600">Urdu:</span><br />
-                            {w.translation.urdu}
-                          </div>
-                        )}
-                        {w.translation?.roman && (
-                          <div className="text-sm p-2 bg-purple-50 border border-purple-100 rounded">
-                            <span className="font-medium text-purple-600">Roman:</span><br />
-                            {w.translation.roman}
-                          </div>
-                        )}
-                      </div>
-
-                      {w.description && (
-                        <div className="text-sm text-gray-800 mb-2 p-3 bg-gray-100 border border-gray-200 rounded-lg leading-relaxed">
-                          <span className="font-semibold text-gray-900">Description:</span><br />
-                          {w.description}
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className={`px-2 py-1 rounded ${
-                          w.status === "Approved"
-                            ? "bg-green-100 text-green-800"
-                            : w.status === "Hidden"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}>
-                          Status: {w.status}
-                        </span>
-                        <span className="px-2 py-1 rounded bg-blue-100 text-blue-800">
-                          Category: {w.category?.name}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Media & Actions */}
-                    <div>
-                      {w.audio && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
-                            <Volume2 size={16} /> Audio:
-                          </div>
-                          <audio controls src={w.audio} className="w-full h-[35px]" />
-                        </div>
-                      )}
-
-                      {w.image && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
-                            <ImageIcon size={16} /> Image:
-                          </div>
-                          <img
-                            src={w.image}
-                            alt={w.word}
-                            className="w-full max-w-[160px] rounded-lg border shadow-sm"
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleApprove(w._id)}
-                          className="flex items-center gap-1 bg-[var(--color-coral)] text-white px-4 py-2 rounded-lg text-xs hover:bg-[var(--color-coral-dark)] shadow-sm transition-all"
-                        >
-                          <CheckCircle size={14} /> Approve
-                        </button>
-                        <button
-                          onClick={() => handleHide(w._id)}
-                          className="flex items-center gap-1 bg-[var(--color-paynesgray)] text-white px-4 py-2 rounded-lg text-xs hover:bg-[var(--color-paynesgray-dark)] shadow-sm transition-all"
-                        >
-                          <EyeOff size={14} /> Hide
-                        </button>
-                        <button
-                          onClick={() => startEditing(w)}
-                          className="flex items-center gap-1 bg-[var(--color-gunmetal)] text-white px-4 py-2 rounded-lg text-xs hover:bg-[var(--color-gunmetal-dark)] shadow-sm transition-all"
-                        >
-                          <Pencil size={14} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(w._id)}
-                          className="flex items-center gap-1 bg-[var(--color-coral-dark)] text-white px-4 py-2 rounded-lg text-xs hover:bg-[var(--color-coral-darker)] shadow-sm transition-all"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+      {/* Word Detail Popup - match AddWordPage popup layout with admin actions */}
+      {selectedWord && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedWord(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-2xl p-4 md:p-6 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-4">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 text-center">
+                  <h2 className="text-2xl md:text-3xl font-bold font-fenix text-[var(--color-gunmetal-darker)] leading-snug">
+                    {selectedWord.words && selectedWord.words.length > 0 ? selectedWord.words[0].word : "Word"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWord(null)}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-[var(--color-coral)] text-[var(--color-coral)] hover:bg-[var(--color-coral)]/5 transition"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
               </div>
-            ))}
+
+              {/* Category + Dialect variants */}
+              {selectedWord.words && selectedWord.words.length > 0 && (
+                <div className="space-y-5">
+                  {/* Category section */}
+                  {selectedWord.category && (
+                    <div className="pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <Layers className="text-[var(--color-paynesgray)]" size={22} />
+                        <div className="space-y-1 text-sm md:text-base text-[var(--color-gunmetal)]">
+                          <p className="text-base md:text-lg">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Category:</span>
+                            <span className="font-bold text-[var(--color-gunmetal-darker)]">
+                              {selectedWord.category.word}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedWord.words.map((dialectWord, idx) => (
+                    <div
+                      key={idx}
+                      className="space-y-3"
+                    >
+                      {/* Word & Dialect */}
+                      <div className="flex items-start gap-3 mb-3 pb-2 border-b border-gray-200">
+                        <Type className="mt-0.5 text-[var(--color-paynesgray)]" size={20} />
+                        <div className="space-y-1 text-sm md:text-base text-[var(--color-gunmetal)]">
+                          <p className="text-base md:text-lg">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Word:</span>
+                            <span className="font-bold text-[var(--color-gunmetal-darker)]">{dialectWord.word}</span>
+                          </p>
+                          <p className="text-xs md:text-sm">
+                            <span className="font-semibold text-[var(--color-paynesgray)] mr-1">Dialect:</span>
+                            <span className="uppercase tracking-wide text-gray-600 font-medium">{dialectWord.dialect}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 text-sm md:text-base text-[var(--color-gunmetal)]">
+                        {/* Meanings */}
+                        {dialectWord.meanings && dialectWord.meanings.length > 0 && (
+                          <div className="space-y-2 pt-3">
+                            <div className="flex items-center gap-3">
+                              <Languages className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)]">
+                                Meanings
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 pl-8">
+                              {dialectWord.meanings.map((meaning, midx) => (
+                                <p
+                                  key={midx}
+                                  className="text-sm md:text-base text-[var(--color-gunmetal-darker)] font-lato"
+                                >
+                                  <span className="font-semibold text-[var(--color-paynesgray)] text-xs md:text-sm mr-1">
+                                    {`${meaning.language?.charAt(0).toUpperCase()}${meaning.language?.slice(1).toLowerCase()}`}:
+                                  </span>
+                                  {meaning.value}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {dialectWord.description && (
+                          <div className="space-y-2 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-3">
+                              <BookText className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)] mb-0">
+                                Description
+                              </p>
+                            </div>
+                            <p className="text-sm md:text-base text-gray-700 font-lato leading-relaxed pl-8">
+                              {dialectWord.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Audio */}
+                        {dialectWord.audio && (
+                          <div className="space-y-2 pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-3">
+                              <Volume2 className="text-[var(--color-paynesgray)]" size={20} />
+                              <p className="text-base md:text-lg font-semibold text-[var(--color-paynesgray)] mb-0">
+                                Media
+                              </p>
+                            </div>
+                            <div className="pl-8">
+                              <audio
+                                controls
+                                src={dialectWord.audio}
+                                className="w-full h-9 rounded-lg"
+                                controlsList="nodownload"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Admin Actions */}
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  onClick={() => handleHide(selectedWord._id)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-paynesgray)] text-white px-4 py-3 rounded-lg font-semibold hover:bg-[var(--color-paynesgray-dark)] transition-colors shadow-md"
+                >
+                  <EyeOff size={18} /> Hide
+                </button>
+                <button
+                  onClick={() => handleDelete(selectedWord._id)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-coral)] text-white px-4 py-3 rounded-lg font-semibold hover:bg-[var(--color-coral-dark)] transition-colors shadow-md"
+                >
+                  <Trash2 size={18} /> Delete
+                </button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="p-6 text-center text-gray-500">No words found</div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

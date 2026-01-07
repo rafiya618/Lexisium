@@ -30,14 +30,18 @@ const keyboards = {
   ]
 };
 
-export default function VirtualKeyboard({ language, onKeyPress, isVisible, onToggle }) {
+export default function VirtualKeyboard({ language, onKeyPress, isVisible, onToggle, onLanguageChange }) {
   const [currentLang, setCurrentLang] = useState(language || "urdu");
-  const [currentKeyboard, setCurrentKeyboard] = useState(keyboards[language] || keyboards.roman);
+  const isGlobalKeyboard = !onToggle && isVisible;
+
+  // Use context-provided language for global keyboard, local state for inline keyboard
+  const activeLang = isGlobalKeyboard ? (language || "urdu") : currentLang;
+  const currentKeyboard = keyboards[activeLang] || keyboards.roman;
 
   const handleLanguageChange = () => {
     const nextLang = currentLang === "urdu" ? "pashto" : currentLang === "pashto" ? "roman" : "urdu";
     setCurrentLang(nextLang);
-    setCurrentKeyboard(keyboards[nextLang]);
+    if (onLanguageChange) onLanguageChange(nextLang);
   };
 
   const handleKeyPress = (key) => {
@@ -50,48 +54,75 @@ export default function VirtualKeyboard({ language, onKeyPress, isVisible, onTog
     return (
       <button
         onClick={onToggle}
-        className="flex items-center gap-2 bg-[var(--color-green)] text-white px-3 py-2 rounded-lg shadow-sm hover:bg-[var(--color-green-dark)] transition"
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-[var(--color-coral)] text-[var(--color-coral)] bg-[var(--color-background)] hover:bg-[var(--color-coral)]/5 text-sm font-medium shadow-sm transition"
       >
-        <Keyboard size={18} /> Keyboard
+        <Keyboard size={16} /> Keyboard
       </button>
     );
   }
 
+  // Build rows for rendering: for the global keyboard, pack more characters per line
+  const rowsToRender = (() => {
+    if (!isGlobalKeyboard) return currentKeyboard;
+
+    const flat = currentKeyboard.flat();
+    const perRow = 22; // pack even more keys per row on wide screens
+    const result = [];
+    for (let i = 0; i < flat.length; i += perRow) {
+      result.push(flat.slice(i, i + perRow));
+    }
+    return result;
+  })();
+
   return (
-    <div className="bg-white border border-[var(--color-lightgray)] rounded-xl shadow-md p-3 mt-3 transition-all duration-300">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-3">
-        <button
-          onClick={handleLanguageChange}
-          title="Switch Language"
-          className="flex items-center gap-2 px-3 py-2 bg-[var(--color-coral)] text-white rounded-md hover:bg-[var(--color-coral-dark)] transition"
-        >
-          <Globe2 size={16} />
-          <span className="capitalize text-sm">{currentLang}</span>
-        </button>
-        <button
-          onClick={onToggle}
-          title="Close Keyboard"
-          className="p-2 rounded-md bg-gray-100 hover:bg-red-100 text-[var(--color-paynesgray)] hover:text-red-600 transition"
-        >
-          <X size={16} />
-        </button>
-      </div>
+    <div
+      className={
+        isGlobalKeyboard
+          ? "px-2 pb-2"
+          : "bg-[var(--color-background)] border border-[var(--color-paynesgray)] rounded-2xl shadow-md p-3 sm:p-3.5 transition-all duration-300"
+      }
+    >
+      {/* Header - only for inline keyboard */}
+      {!isGlobalKeyboard && (
+        <div className="flex justify-between items-center mb-2">
+          <button
+            onClick={handleLanguageChange}
+            title="Switch Language (Urdu  Pashto  Roman)"
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-[var(--color-coral)] text-[var(--color-coral)] bg-white hover:bg-[var(--color-coral)]/5 transition text-xs sm:text-sm font-semibold"
+          >
+            <Globe2 size={14} />
+            <span className="capitalize">{currentLang}</span>
+          </button>
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              title="Close Keyboard"
+              className="p-1.5 rounded-md bg-gray-100 hover:bg-red-100 text-[var(--color-paynesgray)] hover:text-red-600 transition"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Keys */}
-      <div className="space-y-1">
-        {currentKeyboard.map((row, rowIndex) => (
-          <div key={rowIndex} className="flex justify-center gap-1 flex-wrap">
+      <div className={isGlobalKeyboard ? "space-y-1.5" : "space-y-1.5"}>
+        {rowsToRender.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            className={`flex justify-center gap-1 flex-wrap ${rowIndex === 0 && isGlobalKeyboard ? "mt-1" : ""}`}
+          >
             {row.map((key, keyIndex) => (
               <button
                 key={keyIndex}
                 onClick={() => handleKeyPress(key)}
                 className={`
-                  px-3 py-2 rounded-lg border text-[var(--color-paynesgray)]
-                  bg-gray-50 hover:bg-[var(--color-green-light)] hover:text-[var(--color-gunmetal)]
-                  transition min-w-[32px] text-sm shadow-sm
-                  ${key === "Space" ? "min-w-[120px]" : ""}
-                  ${key === "Backspace" ? "bg-red-50 text-red-600 font-semibold" : ""}
+                  ${isGlobalKeyboard ? "px-4 py-2 text-xl sm:text-2xl" : "px-3 py-1.5 text-sm sm:text-base"}
+                  rounded-lg border border-gray-200 text-[var(--color-gunmetal-darker)]
+                  bg-white hover:bg-[var(--color-background)] hover:border-[var(--color-coral)]
+                  transition min-w-[38px] shadow-sm
+                  ${key === "Space" ? (isGlobalKeyboard ? "min-w-[200px]" : "min-w-[130px] sm:min-w-[150px]") : ""}
+                  ${key === "Backspace" ? "bg-red-50 text-red-600 font-semibold border-red-200" : ""}
                 `}
               >
                 {key === "Space" ? "⎵" : key === "Backspace" ? "⌫" : key}
